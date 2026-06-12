@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 use zed::lsp::CompletionKind;
 use zed::settings::LspSettings;
 use zed::{CodeLabel, CodeLabelSpan};
-use zed_extension_api::serde_json::json;
+use zed_extension_api::serde_json::{json, Map, Value};
 use zed_extension_api::{
     self as zed, current_platform, serde_json, DebugAdapterBinary, DebugTaskDefinition, Os, Result,
     StartDebuggingRequestArguments, StartDebuggingRequestArgumentsRequest, Worktree,
@@ -46,6 +49,38 @@ impl DartExtension {
                 .to_string(),
         )
     }
+}
+
+// Handle config fields "env" and "envFile"
+fn handle_envs(config: &serde_json::Value) -> Option<Vec<(String, String)>> {
+    let mut envs: HashMap<String, String> = match config.get("envFile")? {
+        Value::Array(arr) => arr
+            .iter()
+            .filter_map(|v| v.as_str())
+            .filter_map(|ef| dotenvy::from_filename_iter(ef).ok())
+            .flat_map(|iter| iter.filter_map(|item| item.ok()))
+            .collect(),
+        Value::String(ef) => dotenvy::from_filename_iter(ef.as_str())
+            .ok()
+            .into_iter()
+            .flat_map(|iter| iter.filter_map(|item| item.ok()))
+            .collect(),
+        _ => return None,
+    };
+
+    // Explicit "env" values take precedence over "envFile" values
+    config
+        .get("env")
+        .and_then(|v| v.as_object())
+        .into_iter()
+        .flatten()
+        .for_each(|(k, v)| {
+            envs.insert(k.clone(), v.to_string());
+        });
+
+    // Add any Dart-specific env vars here if needed
+
+    Some(envs.into_iter().map(|item| item).collect())
 }
 
 impl zed::Extension for DartExtension {
@@ -138,6 +173,8 @@ impl zed::Extension for DartExtension {
 
         let vm_service_uri = user_config.get("vmServiceUri").and_then(|v| v.as_str());
 
+        let envs = handle_envs(&user_config).unwrap_or(Vec::new());
+
         let config_json = json!({
             "type": tool,
             "request": request,
@@ -155,7 +192,7 @@ impl zed::Extension for DartExtension {
         let debug_adapter_binary = DebugAdapterBinary {
             command: Some(command),
             arguments,
-            envs: vec![], // Add any Dart-specific env vars if needed
+            envs: envs,
             cwd,
             connection: None,
             request_args: StartDebuggingRequestArguments {

@@ -10,4 +10,5 @@ path = "src/dart.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
+dotenvy = "0.15.7"
 zed_extension_api = "0.7.0"
