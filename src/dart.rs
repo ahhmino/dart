@@ -1,10 +1,9 @@
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
+
 use zed::lsp::CompletionKind;
 use zed::settings::LspSettings;
 use zed::{CodeLabel, CodeLabelSpan};
-use zed_extension_api::serde_json::{json, Map, Value};
+use zed_extension_api::serde_json::{json, Value};
 use zed_extension_api::{
     self as zed, current_platform, serde_json, DebugAdapterBinary, DebugTaskDefinition, Os, Result,
     StartDebuggingRequestArguments, StartDebuggingRequestArgumentsRequest, Worktree,
@@ -192,7 +191,7 @@ impl zed::Extension for DartExtension {
         let debug_adapter_binary = DebugAdapterBinary {
             command: Some(command),
             arguments,
-            envs: envs,
+            envs,
             cwd,
             connection: None,
             request_args: StartDebuggingRequestArguments {
